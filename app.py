@@ -444,6 +444,100 @@ def home():
         'features': ['registration', 'login', 'email_verification', 'password_reset', 'dashboard_redirect'],
         'endpoints': ['/register', '/login', '/verify-email', '/request-password-reset', '/reset-password']
     })
+@app.route('/user-info', methods=['GET'])
+def get_user_info():
+    """Aktuelle Benutzer-Informationen und Token-Anzahl abrufen"""
+    try:
+        # JWT Token aus Authorization Header extrahieren
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Authorization Token erforderlich'}), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        # JWT Token dekodieren
+        try:
+            payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            user_id = payload['user_id']
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token abgelaufen'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Ungültiger Token'}), 401
+        
+        # Aktuelle Benutzer-Daten aus Datenbank abrufen
+        user = supabase.table('users').select('*').eq('id', user_id).execute()
+        
+        if not user.data:
+            return jsonify({'error': 'Benutzer nicht gefunden'}), 404
+        
+        user_data = user.data[0]
+        
+        return jsonify({
+            'id': user_data['id'],
+            'email': user_data['email'],
+            'full_name': user_data['full_name'],
+            'tokens': user_data['tokens'],
+            'status': user_data.get('status', 'verified'),
+            'created_at': user_data['created_at']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Server-Fehler: {str(e)}'}), 500
+
+@app.route('/update-tokens', methods=['POST'])
+def update_user_tokens():
+    """Token-Anzahl nach Tool-Nutzung aktualisieren"""
+    try:
+        # JWT Token aus Authorization Header extrahieren
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Authorization Token erforderlich'}), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        # JWT Token dekodieren
+        try:
+            payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            user_id = payload['user_id']
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token abgelaufen'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Ungültiger Token'}), 401
+        
+        data = request.get_json()
+        tokens_used = data.get('tokens_used', 0)
+        tool_name = data.get('tool_name', 'Unbekanntes Tool')
+        
+        if tokens_used <= 0:
+            return jsonify({'error': 'Ungültige Token-Anzahl'}), 400
+        
+        # Aktuelle Token-Anzahl abrufen
+        user = supabase.table('users').select('tokens').eq('id', user_id).execute()
+        
+        if not user.data:
+            return jsonify({'error': 'Benutzer nicht gefunden'}), 404
+        
+        current_tokens = user.data[0]['tokens']
+        
+        if current_tokens < tokens_used:
+            return jsonify({'error': 'Nicht genügend Tokens verfügbar'}), 400
+        
+        # Token-Anzahl reduzieren
+        new_token_count = current_tokens - tokens_used
+        
+        supabase.table('users').update({
+            'tokens': new_token_count
+        }).eq('id', user_id).execute()
+        
+        return jsonify({
+            'message': f'Tokens erfolgreich für {tool_name} verwendet',
+            'tokens_used': tokens_used,
+            'remaining_tokens': new_token_count,
+            'tool_name': tool_name
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Server-Fehler: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
