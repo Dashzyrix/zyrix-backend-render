@@ -18,9 +18,9 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
 
-# E-Mail Konfiguration
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
+# E-Mail Konfiguration - Checkdomain SMTP
+SMTP_SERVER = "host285.checkdomain.de"
+SMTP_PORT = 465
 EMAIL_USER = os.environ.get('EMAIL_USER', 'noreply@zyrix.de')
 EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD')
 
@@ -28,7 +28,7 @@ EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def send_email(to_email, subject, html_content):
-    """E-Mail versenden"""
+    """E-Mail versenden über Checkdomain SMTP"""
     try:
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
@@ -38,8 +38,8 @@ def send_email(to_email, subject, html_content):
         html_part = MIMEText(html_content, 'html', 'utf-8')
         msg.attach(html_part)
         
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
+        # SSL-Verbindung für Port 465
+        server = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT)
         server.login(EMAIL_USER, EMAIL_PASSWORD)
         server.send_message(msg)
         server.quit()
@@ -251,7 +251,7 @@ def verify_email():
                 <div class="success">✅ E-Mail-Adresse erfolgreich bestätigt!</div>
                 <p>Ihr Konto ist jetzt aktiviert und Sie haben <strong>1200 Test-Tokens</strong> erhalten.</p>
                 <p>Sie können sich jetzt anmelden und alle Zyrix-Tools nutzen.</p>
-                <a href="https://zyrix-backend-render.onrender.com/login-page" class="button">🚀 Jetzt anmelden</a>
+                <a href="https://www.zyrix.de/myzyrix" class="button">🚀 Zum Zyrix Dashboard</a>
             </div>
         </body>
         </html>
@@ -301,6 +301,7 @@ def login():
         return jsonify({
             'message': 'Anmeldung erfolgreich',
             'token': token,
+            'redirect_url': 'https://www.zyrix.de/myzyrix',
             'user': {
                 'id': user_data['id'],
                 'email': user_data['email'],
@@ -406,7 +407,7 @@ def reset_password():
 def health():
     return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()}), 200
 
-# HTML-Templates (gekürzt für Übersichtlichkeit)
+# HTML-Templates
 REGISTER_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="de">
@@ -613,11 +614,11 @@ LOGIN_TEMPLATE = """
                 const messageDiv = document.getElementById('message');
                 
                 if (response.ok) {
-                    messageDiv.innerHTML = '<div class="success">Anmeldung erfolgreich! Sie werden weitergeleitet...</div>';
+                    messageDiv.innerHTML = '<div class="success">Anmeldung erfolgreich! Sie werden zum Dashboard weitergeleitet...</div>';
                     localStorage.setItem('zyrix_token', result.token);
                     localStorage.setItem('zyrix_user', JSON.stringify(result.user));
                     setTimeout(() => {
-                        window.location.href = 'https://www.zyrix.de';
+                        window.location.href = result.redirect_url || 'https://www.zyrix.de/myzyrix';
                     }, 2000);
                 } else {
                     messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
@@ -845,11 +846,12 @@ def reset_password_page():
 @app.route('/')
 def home():
     return jsonify({
-        'message': 'Zyrix Backend API mit E-Mail-System',
-        'version': '4.0',
+        'message': 'Zyrix Backend API mit Checkdomain E-Mail-System',
+        'version': '5.0',
         'status': 'online',
         'platform': 'Render.com',
-        'features': ['registration', 'login', 'email_verification', 'password_reset'],
+        'email_provider': 'Checkdomain',
+        'features': ['registration', 'login', 'email_verification', 'password_reset', 'dashboard_redirect'],
         'endpoints': ['/register', '/login', '/verify-email', '/request-password-reset', '/reset-password']
     })
 
