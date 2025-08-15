@@ -1,29 +1,30 @@
-from flask import Flask, request, jsonify, render_template_string
-from flask_cors import CORS
 import os
 import hashlib
 import secrets
-import re
-from datetime import datetime, timedelta
-from supabase import create_client, Client
 import jwt
+from datetime import datetime, timedelta
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from supabase import create_client, Client
 
+# Flask App initialisieren
 app = Flask(__name__)
-CORS(app, origins="*")
+CORS(app)
 
-# Supabase-Konfiguration
-SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://placeholder.supabase.co' )
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY', 'placeholder-key')
-
-try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-except Exception as e:
-    print(f"Supabase connection error: {e}")
-    supabase = None
-
-# JWT-Konfiguration
+# Supabase Konfiguration
+SUPABASE_URL = os.environ.get('SUPABASE_URL')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
 JWT_SECRET = os.environ.get('JWT_SECRET', 'zyrix-jwt-secret-key-2024')
 
+# Supabase Client initialisieren
+supabase: Client = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        print(f"Supabase-Verbindung fehlgeschlagen: {e}")
+
+# Hilfsfunktionen
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -35,19 +36,7 @@ def generate_jwt_token(user_id, email):
     }
     return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
 
-def validate_email(email):
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email) is not None
-
-@app.route('/')
-def home():
-    return jsonify({
-        "message": "Zyrix Backend API",
-        "version": "3.0",
-        "status": "online",
-        "platform": "Render.com",
-        "endpoints": ["/register", "/login", "/request-password-reset", "/reset-password"]
-    })
+# API Routes
 @app.route('/register', methods=['POST'])
 def register():
     try:
@@ -62,25 +51,20 @@ def register():
             if not data.get(field):
                 return jsonify({'error': f'{field} ist erforderlich'}), 400
         
-        if not validate_email(data['email']):
-            return jsonify({'error': 'Ungültige E-Mail-Adresse'}), 400
-        
-        if len(data['password']) < 8:
-            return jsonify({'error': 'Passwort muss mindestens 8 Zeichen lang sein'}), 400
-        
-        # Prüfen ob E-Mail bereits existiert
+        # E-Mail bereits registriert?
         existing_user = supabase.table('users').select('email').eq('email', data['email']).execute()
         if existing_user.data:
             return jsonify({'error': 'E-Mail-Adresse bereits registriert'}), 400
         
-        # Passwort hashen
-        password_hash = hash_password(data['password'])
+        # Passwort validieren
+        if len(data['password']) < 8:
+            return jsonify({'error': 'Passwort muss mindestens 8 Zeichen lang sein'}), 400
         
         # Benutzer erstellen
         user_data = {
             'full_name': data['full_name'],
             'email': data['email'],
-            'password_hash': password_hash,
+            'password_hash': hash_password(data['password']),
             'strasse': data['strasse'],
             'plz': data['plz'],
             'stadt': data['stadt'],
@@ -152,6 +136,7 @@ def login():
         
     except Exception as e:
         return jsonify({'error': f'Server-Fehler: {str(e)}'}), 500
+
 @app.route('/request-password-reset', methods=['POST'])
 def request_password_reset():
     try:
@@ -188,7 +173,7 @@ def request_password_reset():
         return jsonify({
             'message': 'Reset-Link wurde gesendet',
             'reset_link': reset_link
-        } ), 200
+        }), 200
         
     except Exception as e:
         return jsonify({'error': f'Server-Fehler: {str(e)}'}), 500
@@ -244,6 +229,7 @@ def health():
         'timestamp': datetime.utcnow().isoformat(),
         'supabase_connected': supabase is not None
     })
+
 # HTML-Templates als Strings
 REGISTER_TEMPLATE = """
 <!DOCTYPE html>
@@ -261,7 +247,7 @@ REGISTER_TEMPLATE = """
         }
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100% );
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -530,6 +516,7 @@ REGISTER_TEMPLATE = """
 </body>
 </html>
 """
+
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="de">
@@ -546,7 +533,7 @@ LOGIN_TEMPLATE = """
         }
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100% );
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -731,7 +718,7 @@ LOGIN_TEMPLATE = """
                     
                     setTimeout(() => {
                         window.location.href = 'https://www.zyrix.de/myzyrix';
-                    }, 1500 );
+                    }, 1500);
                 } else {
                     errorDiv.textContent = result.error || 'Anmeldung fehlgeschlagen.';
                     errorDiv.style.display = 'block';
@@ -748,6 +735,7 @@ LOGIN_TEMPLATE = """
 </body>
 </html>
 """
+
 FORGOT_PASSWORD_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="de">
@@ -764,7 +752,7 @@ FORGOT_PASSWORD_TEMPLATE = """
         }
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100% );
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -925,8 +913,7 @@ FORGOT_PASSWORD_TEMPLATE = """
                 const result = await response.json();
 
                 if (response.ok) {
-                    successDiv.innerHTML = 'Reset-Link wurde gesendet!   
-<a href="' + result.reset_link + '" target="_blank">Direkt öffnen</a>';
+                    successDiv.innerHTML = 'Reset-Link wurde gesendet! <br><a href="' + result.reset_link + '" target="_blank">Direkt öffnen</a>';
                     successDiv.style.display = 'block';
                     this.reset();
                 } else {
@@ -945,6 +932,7 @@ FORGOT_PASSWORD_TEMPLATE = """
 </body>
 </html>
 """
+
 RESET_PASSWORD_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="de">
@@ -961,7 +949,7 @@ RESET_PASSWORD_TEMPLATE = """
         }
         body {
             font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100% );
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -1178,6 +1166,7 @@ RESET_PASSWORD_TEMPLATE = """
 </body>
 </html>
 """
+
 # HTML-Seiten Routes
 @app.route('/register-page')
 def register_page():
