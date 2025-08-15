@@ -47,7 +47,6 @@ def send_email(to_email, subject, html_content):
     except Exception as e:
         print(f"E-Mail Fehler: {e}")
         return False
-
 def create_verification_email(user_name, verification_link):
     """Bestätigungs-E-Mail Template erstellen"""
     return f"""
@@ -83,10 +82,14 @@ def create_verification_email(user_name, verification_link):
                 <p>Bei Fragen erreichen Sie uns unter: <a href="mailto:support@zyrix.de">support@zyrix.de</a></p>
             </div>
             <div class="footer">
-                <strong>Zyrix.de</strong><br>
-                Inhaber: Marc Netzer<br>
-                Mürmeln 77, 41363 Jüchen, Deutschland<br>
-                E-Mail: support@zyrix.de | Website: www.zyrix.de<br>
+                <strong>Zyrix.de</strong>  
+
+                Inhaber: Marc Netzer  
+
+                Mürmeln 77, 41363 Jüchen, Deutschland  
+
+                E-Mail: support@zyrix.de | Website: www.zyrix.de  
+
                 USt-IdNr.: DE327892859
             </div>
         </div>
@@ -129,17 +132,20 @@ def create_password_reset_email(user_name, reset_link):
                 <p>Bei Fragen erreichen Sie uns unter: <a href="mailto:support@zyrix.de">support@zyrix.de</a></p>
             </div>
             <div class="footer">
-                <strong>Zyrix.de</strong><br>
-                Inhaber: Marc Netzer<br>
-                Mürmeln 77, 41363 Jüchen, Deutschland<br>
-                E-Mail: support@zyrix.de | Website: www.zyrix.de<br>
+                <strong>Zyrix.de</strong>  
+
+                Inhaber: Marc Netzer  
+
+                Mürmeln 77, 41363 Jüchen, Deutschland  
+
+                E-Mail: support@zyrix.de | Website: www.zyrix.de  
+
                 USt-IdNr.: DE327892859
             </div>
         </div>
     </body>
     </html>
     """
-
 @app.route('/register', methods=['POST'])
 def register():
     try:
@@ -184,7 +190,7 @@ def register():
         if result.data:
             # Bestätigungs-E-Mail senden
             verification_link = f"https://zyrix-backend-render.onrender.com/verify-email?token={verification_token}"
-            email_html = create_verification_email(data['full_name'], verification_link)
+            email_html = create_verification_email(data['full_name'], verification_link )
             
             email_sent = send_email(
                 data['email'],
@@ -258,7 +264,7 @@ def verify_email():
         """
         
     except Exception as e:
-        return f"Fehler bei der Bestätigung: {str(e)}", 500
+        return f"Fehler bei der Bestätigung: {str(e )}", 500
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -308,11 +314,10 @@ def login():
                 'full_name': user_data['full_name'],
                 'tokens': user_data['tokens']
             }
-        }), 200
+        } ), 200
         
     except Exception as e:
         return jsonify({'error': f'Server-Fehler: {str(e)}'}), 500
-
 @app.route('/request-password-reset', methods=['POST'])
 def request_password_reset():
     try:
@@ -346,7 +351,7 @@ def request_password_reset():
         
         # Reset-E-Mail senden
         reset_link = f"https://zyrix-backend-render.onrender.com/reset-password-page?token={reset_token}"
-        email_html = create_password_reset_email(user_data['full_name'], reset_link)
+        email_html = create_password_reset_email(user_data['full_name'], reset_link )
         
         email_sent = send_email(
             email,
@@ -407,6 +412,41 @@ def reset_password():
 def health():
     return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()}), 200
 
+# HTML-Templates sind sehr lang - verwenden Sie die bestehenden aus der alten app.py
+# Oder ich kann sie separat schicken
+
+# HTML-Seiten Routes
+@app.route('/register-page')
+def register_page():
+    return REGISTER_TEMPLATE
+
+@app.route('/login-page')
+def login_page():
+    return LOGIN_TEMPLATE
+
+@app.route('/forgot-password-page')
+def forgot_password_page():
+    return FORGOT_PASSWORD_TEMPLATE
+
+@app.route('/reset-password-page')
+def reset_password_page():
+    return RESET_PASSWORD_TEMPLATE
+
+# Hauptseite Route
+@app.route('/')
+def home():
+    return jsonify({
+        'message': 'Zyrix Backend API mit Checkdomain E-Mail-System',
+        'version': '5.0',
+        'status': 'online',
+        'platform': 'Render.com',
+        'email_provider': 'Checkdomain',
+        'features': ['registration', 'login', 'email_verification', 'password_reset', 'dashboard_redirect'],
+        'endpoints': ['/register', '/login', '/verify-email', '/request-password-reset', '/reset-password']
+    })
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
 # HTML-Templates
 REGISTER_TEMPLATE = """
 <!DOCTYPE html>
@@ -418,7 +458,7 @@ REGISTER_TEMPLATE = """
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100% ); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .container { background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); overflow: hidden; width: 100%; max-width: 400px; padding: 40px; }
         .logo { text-align: center; margin-bottom: 30px; }
         .logo h1 { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
@@ -504,7 +544,7 @@ REGISTER_TEMPLATE = """
     </div>
 
     <script>
-        document.getElementById('is_company').addEventListener('change', function() {
+        document.getElementById('is_company' ).addEventListener('change', function() {
             const companyFields = document.getElementById('company_fields');
             companyFields.style.display = this.checked ? 'block' : 'none';
         });
@@ -539,7 +579,6 @@ REGISTER_TEMPLATE = """
 </body>
 </html>
 """
-
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="de">
@@ -550,7 +589,7 @@ LOGIN_TEMPLATE = """
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100% ); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .container { background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); overflow: hidden; width: 100%; max-width: 400px; padding: 40px; }
         .logo { text-align: center; margin-bottom: 30px; }
         .logo h1 { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
@@ -591,13 +630,15 @@ LOGIN_TEMPLATE = """
         </form>
         
         <div class="links">
-            <a href="https://zyrix-backend-render.onrender.com/forgot-password-page">Passwort vergessen?</a><br><br>
+            <a href="https://zyrix-backend-render.onrender.com/forgot-password-page">Passwort vergessen?</a>  
+  
+
             Noch kein Account? <a href="https://zyrix-backend-render.onrender.com/register-page">Jetzt registrieren</a>
         </div>
     </div>
 
     <script>
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        document.getElementById('loginForm' ).addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const formData = new FormData(this);
@@ -619,7 +660,7 @@ LOGIN_TEMPLATE = """
                     localStorage.setItem('zyrix_user', JSON.stringify(result.user));
                     setTimeout(() => {
                         window.location.href = result.redirect_url || 'https://www.zyrix.de/myzyrix';
-                    }, 2000);
+                    }, 2000 );
                 } else {
                     messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
                 }
@@ -631,94 +672,6 @@ LOGIN_TEMPLATE = """
 </body>
 </html>
 """
-
-FORGOT_PASSWORD_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Passwort vergessen - Zyrix</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .container { background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); overflow: hidden; width: 100%; max-width: 400px; padding: 40px; }
-        .logo { text-align: center; margin-bottom: 30px; }
-        .logo h1 { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .description { text-align: center; color: #666; margin-bottom: 30px; line-height: 1.6; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: 500; color: #333; }
-        input[type="email"] { width: 100%; padding: 15px; border: 2px solid #e1e5e9; border-radius: 10px; font-size: 16px; transition: border-color 0.3s; }
-        input[type="email"]:focus { outline: none; border-color: #FF9900; }
-        .btn { width: 100%; padding: 15px; background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: transform 0.2s; }
-        .btn:hover { transform: translateY(-2px); }
-        .back-link { text-align: center; margin-top: 20px; }
-        .back-link a { color: #FF9900; text-decoration: none; font-weight: 500; }
-        .message { padding: 15px; margin-bottom: 20px; border-radius: 8px; text-align: center; }
-        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="logo">
-            <h1>Zyrix</h1>
-            <p>Passwort vergessen</p>
-        </div>
-        
-        <div class="description">
-            Geben Sie Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link zum Zurücksetzen Ihres Passworts.
-        </div>
-        
-        <div id="message"></div>
-        
-        <form id="forgotForm">
-            <div class="form-group">
-                <label for="email">E-Mail-Adresse</label>
-                <input type="email" id="email" name="email" required>
-            </div>
-            
-            <button type="submit" class="btn">Reset-Link senden</button>
-        </form>
-        
-        <div class="back-link">
-            <a href="https://zyrix-backend-render.onrender.com/login-page">Zurück zur Anmeldung</a>
-        </div>
-    </div>
-
-    <script>
-        document.getElementById('forgotForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData.entries());
-            
-            try {
-                const response = await fetch('/request-password-reset', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                const messageDiv = document.getElementById('message');
-                
-                if (response.ok) {
-                    messageDiv.innerHTML = '<div class="success">' + result.message + '</div>';
-                    this.reset();
-                } else {
-                    messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
-                }
-            } catch (error) {
-                document.getElementById('message').innerHTML = '<div class="error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
-            }
-        });
-    </script>
-</body>
-</html>
-"""
-
 RESET_PASSWORD_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="de">
@@ -729,7 +682,7 @@ RESET_PASSWORD_TEMPLATE = """
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100% ); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .container { background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); overflow: hidden; width: 100%; max-width: 400px; padding: 40px; }
         .logo { text-align: center; margin-bottom: 30px; }
         .logo h1 { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
@@ -780,7 +733,7 @@ RESET_PASSWORD_TEMPLATE = """
     </div>
 
     <script>
-        const urlParams = new URLSearchParams(window.location.search);
+        const urlParams = new URLSearchParams(window.location.search );
         const token = urlParams.get('token');
         
         if (!token) {
@@ -812,7 +765,7 @@ RESET_PASSWORD_TEMPLATE = """
                     messageDiv.innerHTML = '<div class="success">' + result.message + ' Sie werden zur Anmeldung weitergeleitet...</div>';
                     setTimeout(() => {
                         window.location.href = 'https://zyrix-backend-render.onrender.com/login-page';
-                    }, 3000);
+                    }, 3000 );
                 } else {
                     messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
                 }
@@ -824,36 +777,3 @@ RESET_PASSWORD_TEMPLATE = """
 </body>
 </html>
 """
-
-# HTML-Seiten Routes
-@app.route('/register-page')
-def register_page():
-    return REGISTER_TEMPLATE
-
-@app.route('/login-page')
-def login_page():
-    return LOGIN_TEMPLATE
-
-@app.route('/forgot-password-page')
-def forgot_password_page():
-    return FORGOT_PASSWORD_TEMPLATE
-
-@app.route('/reset-password-page')
-def reset_password_page():
-    return RESET_PASSWORD_TEMPLATE
-
-# Hauptseite Route
-@app.route('/')
-def home():
-    return jsonify({
-        'message': 'Zyrix Backend API mit Checkdomain E-Mail-System',
-        'version': '5.0',
-        'status': 'online',
-        'platform': 'Render.com',
-        'email_provider': 'Checkdomain',
-        'features': ['registration', 'login', 'email_verification', 'password_reset', 'dashboard_redirect'],
-        'endpoints': ['/register', '/login', '/verify-email', '/request-password-reset', '/reset-password']
-    })
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
