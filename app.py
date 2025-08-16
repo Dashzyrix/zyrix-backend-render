@@ -47,6 +47,7 @@ def send_email(to_email, subject, html_content):
     except Exception as e:
         print(f"E-Mail Fehler: {e}")
         return False
+
 def create_verification_email(user_name, verification_link):
     """Bestätigungs-E-Mail Template erstellen"""
     return f"""
@@ -82,14 +83,10 @@ def create_verification_email(user_name, verification_link):
                 <p>Bei Fragen erreichen Sie uns unter: <a href="mailto:support@zyrix.de">support@zyrix.de</a></p>
             </div>
             <div class="footer">
-                <strong>Zyrix.de</strong>  
-
-                Inhaber: Marc Netzer  
-
-                Mürmeln 77, 41363 Jüchen, Deutschland  
-
-                E-Mail: support@zyrix.de | Website: www.zyrix.de  
-
+                <strong>Zyrix.de</strong><br>
+                Inhaber: Marc Netzer<br>
+                Mürmeln 77, 41363 Jüchen, Deutschland<br>
+                E-Mail: support@zyrix.de | Website: www.zyrix.de<br>
                 USt-IdNr.: DE327892859
             </div>
         </div>
@@ -132,20 +129,17 @@ def create_password_reset_email(user_name, reset_link):
                 <p>Bei Fragen erreichen Sie uns unter: <a href="mailto:support@zyrix.de">support@zyrix.de</a></p>
             </div>
             <div class="footer">
-                <strong>Zyrix.de</strong>  
-
-                Inhaber: Marc Netzer  
-
-                Mürmeln 77, 41363 Jüchen, Deutschland  
-
-                E-Mail: support@zyrix.de | Website: www.zyrix.de  
-
+                <strong>Zyrix.de</strong><br>
+                Inhaber: Marc Netzer<br>
+                Mürmeln 77, 41363 Jüchen, Deutschland<br>
+                E-Mail: support@zyrix.de | Website: www.zyrix.de<br>
                 USt-IdNr.: DE327892859
             </div>
         </div>
     </body>
     </html>
     """
+
 @app.route('/register', methods=['POST'])
 def register():
     try:
@@ -190,7 +184,7 @@ def register():
         if result.data:
             # Bestätigungs-E-Mail senden
             verification_link = f"https://zyrix-backend-render.onrender.com/verify-email?token={verification_token}"
-            email_html = create_verification_email(data['full_name'], verification_link )
+            email_html = create_verification_email(data['full_name'], verification_link)
             
             email_sent = send_email(
                 data['email'],
@@ -264,7 +258,7 @@ def verify_email():
         """
         
     except Exception as e:
-        return f"Fehler bei der Bestätigung: {str(e )}", 500
+        return f"Fehler bei der Bestätigung: {str(e)}", 500
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -314,10 +308,54 @@ def login():
                 'full_name': user_data['full_name'],
                 'tokens': user_data['tokens']
             }
-        } ), 200
+        }), 200
         
     except Exception as e:
         return jsonify({'error': f'Server-Fehler: {str(e)}'}), 500
+
+@app.route('/user-info', methods=['GET'])
+def get_user_info():
+    """Benutzer-Informationen und aktuelle Token-Anzahl abrufen"""
+    try:
+        # JWT Token aus Authorization Header lesen
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Authorization Token erforderlich'}), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        # JWT Token validieren
+        try:
+            payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            user_id = payload['user_id']
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token abgelaufen'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Ungültiger Token'}), 401
+        
+        # Aktuelle Benutzer-Daten aus Supabase abrufen
+        user = supabase.table('users').select('*').eq('id', user_id).execute()
+        
+        if not user.data:
+            return jsonify({'error': 'Benutzer nicht gefunden'}), 404
+        
+        user_data = user.data[0]
+        
+        # Benutzer-Informationen zurückgeben
+        return jsonify({
+            'user': {
+                'id': user_data['id'],
+                'email': user_data['email'],
+                'full_name': user_data['full_name'],
+                'tokens': user_data['tokens'],
+                'status': user_data['status']
+            },
+            'tokens': user_data['tokens']
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Server-Fehler: {str(e)}'}), 500
+
 @app.route('/request-password-reset', methods=['POST'])
 def request_password_reset():
     try:
@@ -351,19 +389,16 @@ def request_password_reset():
         
         # Reset-E-Mail senden
         reset_link = f"https://zyrix-backend-render.onrender.com/reset-password-page?token={reset_token}"
-        email_html = create_password_reset_email(user_data['full_name'], reset_link )
+        email_html = create_password_reset_email(user_data['full_name'], reset_link)
         
-        email_sent = send_email(
+        send_email(
             email,
             "Zyrix.de - Passwort zurücksetzen",
             email_html
         )
         
-        if email_sent:
-            return jsonify({'message': 'Reset-Link wurde an Ihre E-Mail-Adresse gesendet'}), 200
-        else:
-            return jsonify({'message': 'E-Mail konnte nicht gesendet werden. Versuchen Sie es später erneut.'}), 500
-            
+        return jsonify({'message': 'Falls die E-Mail-Adresse registriert ist, wurde ein Reset-Link gesendet'}), 200
+        
     except Exception as e:
         return jsonify({'error': f'Server-Fehler: {str(e)}'}), 500
 
@@ -378,42 +413,687 @@ def reset_password():
             return jsonify({'error': 'Token und neues Passwort erforderlich'}), 400
         
         # Reset Token prüfen
-        reset_data = supabase.table('password_resets').select('*').eq('token', token).eq('used', False).execute()
+        reset_entry = supabase.table('password_resets').select('*').eq('token', token).eq('used', False).execute()
         
-        if not reset_data.data:
+        if not reset_entry.data:
             return jsonify({'error': 'Ungültiger oder bereits verwendeter Reset-Link'}), 400
         
-        reset_info = reset_data.data[0]
+        reset_data = reset_entry.data[0]
         
         # Token-Ablauf prüfen
-        expires_at = datetime.fromisoformat(reset_info['expires_at'].replace('Z', '+00:00'))
+        expires_at = datetime.fromisoformat(reset_data['expires_at'].replace('Z', '+00:00'))
         if datetime.utcnow().replace(tzinfo=expires_at.tzinfo) > expires_at:
             return jsonify({'error': 'Reset-Link ist abgelaufen'}), 400
         
         # Neues Passwort hashen
         password_hash = hashlib.sha256(new_password.encode()).hexdigest()
         
-        # Passwort aktualisieren
+        # Passwort in Datenbank aktualisieren
         supabase.table('users').update({
             'password_hash': password_hash
-        }).eq('id', reset_info['user_id']).execute()
+        }).eq('id', reset_data['user_id']).execute()
         
         # Reset Token als verwendet markieren
         supabase.table('password_resets').update({
             'used': True
-        }).eq('id', reset_info['id']).execute()
+        }).eq('id', reset_data['id']).execute()
         
         return jsonify({'message': 'Passwort erfolgreich zurückgesetzt'}), 200
         
     except Exception as e:
         return jsonify({'error': f'Server-Fehler: {str(e)}'}), 500
 
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()}), 200
+# HTML-Seiten Templates
+REGISTER_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrierung - Zyrix</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Poppins', Arial, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            padding: 20px; 
+        }
+        .container { 
+            background: white; 
+            border-radius: 20px; 
+            padding: 40px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
+            max-width: 500px; 
+            width: 100%; 
+        }
+        .logo { 
+            font-size: 3rem; 
+            font-weight: 800; 
+            color: #FF9900; 
+            text-align: center; 
+            margin-bottom: 30px; 
+        }
+        .form-group { 
+            margin-bottom: 20px; 
+        }
+        label { 
+            display: block; 
+            margin-bottom: 8px; 
+            font-weight: 600; 
+            color: #333; 
+        }
+        input, select { 
+            width: 100%; 
+            padding: 12px; 
+            border: 2px solid #e0e0e0; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            transition: border-color 0.3s; 
+        }
+        input:focus, select:focus { 
+            outline: none; 
+            border-color: #FF9900; 
+        }
+        .btn { 
+            width: 100%; 
+            padding: 15px; 
+            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 18px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: transform 0.2s; 
+        }
+        .btn:hover { 
+            transform: translateY(-2px); 
+        }
+        .message { 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            text-align: center; 
+        }
+        .success { 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        .error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+        }
+        .login-link { 
+            text-align: center; 
+            margin-top: 20px; 
+        }
+        .login-link a { 
+            color: #FF9900; 
+            text-decoration: none; 
+            font-weight: 600; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">Zyrix</div>
+        <div id="message"></div>
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="full_name">Vollständiger Name *</label>
+                <input type="text" id="full_name" name="full_name" required>
+            </div>
+            <div class="form-group">
+                <label for="email">E-Mail-Adresse *</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Passwort *</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <div class="form-group">
+                <label for="strasse">Straße und Hausnummer *</label>
+                <input type="text" id="strasse" name="strasse" required>
+            </div>
+            <div class="form-group">
+                <label for="plz">Postleitzahl *</label>
+                <input type="text" id="plz" name="plz" required>
+            </div>
+            <div class="form-group">
+                <label for="stadt">Stadt *</label>
+                <input type="text" id="stadt" name="stadt" required>
+            </div>
+            <div class="form-group">
+                <label for="land">Land *</label>
+                <select id="land" name="land" required>
+                    <option value="">Land auswählen</option>
+                    <option value="Deutschland">Deutschland</option>
+                    <option value="Österreich">Österreich</option>
+                    <option value="Schweiz">Schweiz</option>
+                    <option value="Andere">Andere</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="firmenname">Firmenname (optional)</label>
+                <input type="text" id="firmenname" name="firmenname">
+            </div>
+            <div class="form-group">
+                <label for="ust_idnr">USt-IdNr. (optional)</label>
+                <input type="text" id="ust_idnr" name="ust_idnr">
+            </div>
+            <button type="submit" class="btn">🚀 Jetzt registrieren</button>
+        </form>
+        <div class="login-link">
+            Bereits registriert? <a href="/login-page">Hier anmelden</a>
+        </div>
+    </div>
 
-# HTML-Templates sind sehr lang - verwenden Sie die bestehenden aus der alten app.py
-# Oder ich kann sie separat schicken
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData.entries());
+            
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                const messageDiv = document.getElementById('message');
+                
+                if (response.ok) {
+                    messageDiv.innerHTML = '<div class="message success">' + result.message + '</div>';
+                    this.reset();
+                } else {
+                    messageDiv.innerHTML = '<div class="message error">' + result.error + '</div>';
+                }
+            } catch (error) {
+                document.getElementById('message').innerHTML = '<div class="message error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
+            }
+        });
+    </script>
+</body>
+</html>
+"""
+
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anmeldung - Zyrix</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Poppins', Arial, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            padding: 20px; 
+        }
+        .container { 
+            background: white; 
+            border-radius: 20px; 
+            padding: 40px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
+            max-width: 400px; 
+            width: 100%; 
+        }
+        .logo { 
+            font-size: 3rem; 
+            font-weight: 800; 
+            color: #FF9900; 
+            text-align: center; 
+            margin-bottom: 30px; 
+        }
+        .form-group { 
+            margin-bottom: 20px; 
+        }
+        label { 
+            display: block; 
+            margin-bottom: 8px; 
+            font-weight: 600; 
+            color: #333; 
+        }
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            border: 2px solid #e0e0e0; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            transition: border-color 0.3s; 
+        }
+        input:focus { 
+            outline: none; 
+            border-color: #FF9900; 
+        }
+        .btn { 
+            width: 100%; 
+            padding: 15px; 
+            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 18px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: transform 0.2s; 
+        }
+        .btn:hover { 
+            transform: translateY(-2px); 
+        }
+        .message { 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            text-align: center; 
+        }
+        .success { 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        .error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+        }
+        .links { 
+            text-align: center; 
+            margin-top: 20px; 
+        }
+        .links a { 
+            color: #FF9900; 
+            text-decoration: none; 
+            font-weight: 600; 
+            margin: 0 10px; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">Zyrix</div>
+        <div id="message"></div>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">E-Mail-Adresse</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Passwort</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn">🔑 Anmelden</button>
+        </form>
+        <div class="links">
+            <a href="/register-page">Registrieren</a> | 
+            <a href="/forgot-password-page">Passwort vergessen?</a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData.entries());
+            
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                const messageDiv = document.getElementById('message');
+                
+                if (response.ok) {
+                    messageDiv.innerHTML = '<div class="message success">Anmeldung erfolgreich! Weiterleitung...</div>';
+                    
+                    // Token speichern
+                    localStorage.setItem('zyrix_token', result.token);
+                    localStorage.setItem('zyrix_user', JSON.stringify(result.user));
+                    
+                    // Weiterleitung zum Dashboard
+                    setTimeout(() => {
+                        window.location.href = result.redirect_url;
+                    }, 1000);
+                } else {
+                    messageDiv.innerHTML = '<div class="message error">' + result.error + '</div>';
+                }
+            } catch (error) {
+                document.getElementById('message').innerHTML = '<div class="message error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
+            }
+        });
+    </script>
+</body>
+</html>
+"""
+
+FORGOT_PASSWORD_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passwort vergessen - Zyrix</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Poppins', Arial, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            padding: 20px; 
+        }
+        .container { 
+            background: white; 
+            border-radius: 20px; 
+            padding: 40px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
+            max-width: 400px; 
+            width: 100%; 
+        }
+        .logo { 
+            font-size: 3rem; 
+            font-weight: 800; 
+            color: #FF9900; 
+            text-align: center; 
+            margin-bottom: 30px; 
+        }
+        .form-group { 
+            margin-bottom: 20px; 
+        }
+        label { 
+            display: block; 
+            margin-bottom: 8px; 
+            font-weight: 600; 
+            color: #333; 
+        }
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            border: 2px solid #e0e0e0; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            transition: border-color 0.3s; 
+        }
+        input:focus { 
+            outline: none; 
+            border-color: #FF9900; 
+        }
+        .btn { 
+            width: 100%; 
+            padding: 15px; 
+            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 18px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: transform 0.2s; 
+        }
+        .btn:hover { 
+            transform: translateY(-2px); 
+        }
+        .message { 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            text-align: center; 
+        }
+        .success { 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        .error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+        }
+        .back-link { 
+            text-align: center; 
+            margin-top: 20px; 
+        }
+        .back-link a { 
+            color: #FF9900; 
+            text-decoration: none; 
+            font-weight: 600; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">Zyrix</div>
+        <h2 style="text-align: center; margin-bottom: 20px; color: #333;">Passwort zurücksetzen</h2>
+        <div id="message"></div>
+        <form id="forgotForm">
+            <div class="form-group">
+                <label for="email">E-Mail-Adresse</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <button type="submit" class="btn">📧 Reset-Link senden</button>
+        </form>
+        <div class="back-link">
+            <a href="/login-page">← Zurück zur Anmeldung</a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('forgotForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData.entries());
+            
+            try {
+                const response = await fetch('/request-password-reset', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                const messageDiv = document.getElementById('message');
+                
+                if (response.ok) {
+                    messageDiv.innerHTML = '<div class="message success">' + result.message + '</div>';
+                    this.reset();
+                } else {
+                    messageDiv.innerHTML = '<div class="message error">' + result.error + '</div>';
+                }
+            } catch (error) {
+                document.getElementById('message').innerHTML = '<div class="message error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
+            }
+        });
+    </script>
+</body>
+</html>
+"""
+
+RESET_PASSWORD_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neues Passwort - Zyrix</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Poppins', Arial, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            padding: 20px; 
+        }
+        .container { 
+            background: white; 
+            border-radius: 20px; 
+            padding: 40px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
+            max-width: 400px; 
+            width: 100%; 
+        }
+        .logo { 
+            font-size: 3rem; 
+            font-weight: 800; 
+            color: #FF9900; 
+            text-align: center; 
+            margin-bottom: 30px; 
+        }
+        .form-group { 
+            margin-bottom: 20px; 
+        }
+        label { 
+            display: block; 
+            margin-bottom: 8px; 
+            font-weight: 600; 
+            color: #333; 
+        }
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            border: 2px solid #e0e0e0; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            transition: border-color 0.3s; 
+        }
+        input:focus { 
+            outline: none; 
+            border-color: #FF9900; 
+        }
+        .btn { 
+            width: 100%; 
+            padding: 15px; 
+            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 18px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: transform 0.2s; 
+        }
+        .btn:hover { 
+            transform: translateY(-2px); 
+        }
+        .message { 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            text-align: center; 
+        }
+        .success { 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        .error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">Zyrix</div>
+        <h2 style="text-align: center; margin-bottom: 20px; color: #333;">Neues Passwort erstellen</h2>
+        <div id="message"></div>
+        <form id="resetForm">
+            <input type="hidden" id="token" name="token">
+            <div class="form-group">
+                <label for="password">Neues Passwort</label>
+                <input type="password" id="password" name="password" required minlength="6">
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">Passwort bestätigen</label>
+                <input type="password" id="confirm_password" name="confirm_password" required minlength="6">
+            </div>
+            <button type="submit" class="btn">🔑 Passwort speichern</button>
+        </form>
+    </div>
+
+    <script>
+        // Token aus URL-Parameter lesen
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        
+        if (token) {
+            document.getElementById('token').value = token;
+        } else {
+            document.getElementById('message').innerHTML = '<div class="message error">Ungültiger Reset-Link</div>';
+        }
+
+        document.getElementById('resetForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            
+            if (password !== confirmPassword) {
+                document.getElementById('message').innerHTML = '<div class="message error">Passwörter stimmen nicht überein</div>';
+                return;
+            }
+            
+            const data = {
+                token: document.getElementById('token').value,
+                password: password
+            };
+            
+            try {
+                const response = await fetch('/reset-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                const messageDiv = document.getElementById('message');
+                
+                if (response.ok) {
+                    messageDiv.innerHTML = '<div class="message success">' + result.message + ' <br><a href="/login-page">Jetzt anmelden</a></div>';
+                    this.reset();
+                } else {
+                    messageDiv.innerHTML = '<div class="message error">' + result.error + '</div>';
+                }
+            } catch (error) {
+                document.getElementById('message').innerHTML = '<div class="message error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
+            }
+        });
+    </script>
+</body>
+</html>
+"""
 
 # HTML-Seiten Routes
 @app.route('/register-page')
@@ -436,438 +1116,12 @@ def reset_password_page():
 @app.route('/')
 def home():
     return jsonify({
-        'message': 'Zyrix Backend API mit Checkdomain E-Mail-System',
-        'version': '5.0',
+        'message': 'Zyrix Backend API',
+        'version': '3.1',
         'status': 'online',
         'platform': 'Render.com',
-        'email_provider': 'Checkdomain',
-        'features': ['registration', 'login', 'email_verification', 'password_reset', 'dashboard_redirect'],
-        'endpoints': ['/register', '/login', '/verify-email', '/request-password-reset', '/reset-password']
+        'endpoints': ['/register', '/login', '/user-info', '/request-password-reset', '/reset-password']
     })
-@app.route('/user-info', methods=['GET'])
-def get_user_info():
-    """Aktuelle Benutzer-Informationen und Token-Anzahl abrufen"""
-    try:
-        # JWT Token aus Authorization Header extrahieren
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'Authorization Token erforderlich'}), 401
-        
-        token = auth_header.split(' ')[1]
-        
-        # JWT Token dekodieren
-        try:
-            payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-            user_id = payload['user_id']
-        except jwt.ExpiredSignatureError:
-            return jsonify({'error': 'Token abgelaufen'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'error': 'Ungültiger Token'}), 401
-        
-        # Aktuelle Benutzer-Daten aus Datenbank abrufen
-        user = supabase.table('users').select('*').eq('id', user_id).execute()
-        
-        if not user.data:
-            return jsonify({'error': 'Benutzer nicht gefunden'}), 404
-        
-        user_data = user.data[0]
-        
-        return jsonify({
-            'id': user_data['id'],
-            'email': user_data['email'],
-            'full_name': user_data['full_name'],
-            'tokens': user_data['tokens'],
-            'status': user_data.get('status', 'verified'),
-            'created_at': user_data['created_at']
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'error': f'Server-Fehler: {str(e)}'}), 500
-
-@app.route('/update-tokens', methods=['POST'])
-def update_user_tokens():
-    """Token-Anzahl nach Tool-Nutzung aktualisieren"""
-    try:
-        # JWT Token aus Authorization Header extrahieren
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'Authorization Token erforderlich'}), 401
-        
-        token = auth_header.split(' ')[1]
-        
-        # JWT Token dekodieren
-        try:
-            payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-            user_id = payload['user_id']
-        except jwt.ExpiredSignatureError:
-            return jsonify({'error': 'Token abgelaufen'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'error': 'Ungültiger Token'}), 401
-        
-        data = request.get_json()
-        tokens_used = data.get('tokens_used', 0)
-        tool_name = data.get('tool_name', 'Unbekanntes Tool')
-        
-        if tokens_used <= 0:
-            return jsonify({'error': 'Ungültige Token-Anzahl'}), 400
-        
-        # Aktuelle Token-Anzahl abrufen
-        user = supabase.table('users').select('tokens').eq('id', user_id).execute()
-        
-        if not user.data:
-            return jsonify({'error': 'Benutzer nicht gefunden'}), 404
-        
-        current_tokens = user.data[0]['tokens']
-        
-        if current_tokens < tokens_used:
-            return jsonify({'error': 'Nicht genügend Tokens verfügbar'}), 400
-        
-        # Token-Anzahl reduzieren
-        new_token_count = current_tokens - tokens_used
-        
-        supabase.table('users').update({
-            'tokens': new_token_count
-        }).eq('id', user_id).execute()
-        
-        return jsonify({
-            'message': f'Tokens erfolgreich für {tool_name} verwendet',
-            'tokens_used': tokens_used,
-            'remaining_tokens': new_token_count,
-            'tool_name': tool_name
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'error': f'Server-Fehler: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
-# HTML-Templates
-REGISTER_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registrierung - Zyrix</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100% ); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .container { background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); overflow: hidden; width: 100%; max-width: 400px; padding: 40px; }
-        .logo { text-align: center; margin-bottom: 30px; }
-        .logo h1 { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: 500; color: #333; }
-        input[type="text"], input[type="email"], input[type="password"] { width: 100%; padding: 15px; border: 2px solid #e1e5e9; border-radius: 10px; font-size: 16px; transition: border-color 0.3s; }
-        input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus { outline: none; border-color: #FF9900; }
-        .checkbox-group { display: flex; align-items: center; margin-bottom: 20px; }
-        .checkbox-group input[type="checkbox"] { margin-right: 10px; }
-        .btn { width: 100%; padding: 15px; background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: transform 0.2s; }
-        .btn:hover { transform: translateY(-2px); }
-        .login-link { text-align: center; margin-top: 20px; }
-        .login-link a { color: #FF9900; text-decoration: none; font-weight: 500; }
-        .message { padding: 15px; margin-bottom: 20px; border-radius: 8px; text-align: center; }
-        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="logo">
-            <h1>Zyrix</h1>
-            <p>Registrierung</p>
-        </div>
-        
-        <div id="message"></div>
-        
-        <form id="registerForm">
-            <div class="form-group">
-                <label for="full_name">Vollständiger Name *</label>
-                <input type="text" id="full_name" name="full_name" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="email">E-Mail-Adresse *</label>
-                <input type="email" id="email" name="email" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">Passwort *</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="strasse">Straße *</label>
-                <input type="text" id="strasse" name="strasse" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="plz">PLZ *</label>
-                <input type="text" id="plz" name="plz" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="stadt">Stadt *</label>
-                <input type="text" id="stadt" name="stadt" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="land">Land *</label>
-                <input type="text" id="land" name="land" value="Deutschland" required>
-            </div>
-            
-            <div class="checkbox-group">
-                <input type="checkbox" id="is_company" name="is_company">
-                <label for="is_company">Ich registriere mich als Unternehmen</label>
-            </div>
-            
-            <div class="form-group" id="company_fields" style="display: none;">
-                <label for="firmenname">Firmenname</label>
-                <input type="text" id="firmenname" name="firmenname">
-                
-                <label for="ust_idnr" style="margin-top: 15px;">USt-IdNr.</label>
-                <input type="text" id="ust_idnr" name="ust_idnr">
-            </div>
-            
-            <button type="submit" class="btn">Registrieren</button>
-        </form>
-        
-        <div class="login-link">
-            Bereits registriert? <a href="https://zyrix-backend-render.onrender.com/login-page">Jetzt anmelden</a>
-        </div>
-    </div>
-
-    <script>
-        document.getElementById('is_company' ).addEventListener('change', function() {
-            const companyFields = document.getElementById('company_fields');
-            companyFields.style.display = this.checked ? 'block' : 'none';
-        });
-
-        document.getElementById('registerForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData.entries());
-            
-            try {
-                const response = await fetch('/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                const messageDiv = document.getElementById('message');
-                
-                if (response.ok) {
-                    messageDiv.innerHTML = '<div class="success">' + result.message + '</div>';
-                    this.reset();
-                } else {
-                    messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
-                }
-            } catch (error) {
-                document.getElementById('message').innerHTML = '<div class="error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
-            }
-        });
-    </script>
-</body>
-</html>
-"""
-LOGIN_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anmeldung - Zyrix</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100% ); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .container { background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); overflow: hidden; width: 100%; max-width: 400px; padding: 40px; }
-        .logo { text-align: center; margin-bottom: 30px; }
-        .logo h1 { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: 500; color: #333; }
-        input[type="email"], input[type="password"] { width: 100%; padding: 15px; border: 2px solid #e1e5e9; border-radius: 10px; font-size: 16px; transition: border-color 0.3s; }
-        input[type="email"]:focus, input[type="password"]:focus { outline: none; border-color: #FF9900; }
-        .btn { width: 100%; padding: 15px; background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: transform 0.2s; }
-        .btn:hover { transform: translateY(-2px); }
-        .links { text-align: center; margin-top: 20px; }
-        .links a { color: #FF9900; text-decoration: none; font-weight: 500; margin: 0 10px; }
-        .message { padding: 15px; margin-bottom: 20px; border-radius: 8px; text-align: center; }
-        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="logo">
-            <h1>Zyrix</h1>
-            <p>Anmeldung</p>
-        </div>
-        
-        <div id="message"></div>
-        
-        <form id="loginForm">
-            <div class="form-group">
-                <label for="email">E-Mail-Adresse</label>
-                <input type="email" id="email" name="email" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">Passwort</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            
-            <button type="submit" class="btn">Anmelden</button>
-        </form>
-        
-        <div class="links">
-            <a href="https://zyrix-backend-render.onrender.com/forgot-password-page">Passwort vergessen?</a>  
-  
-
-            Noch kein Account? <a href="https://zyrix-backend-render.onrender.com/register-page">Jetzt registrieren</a>
-        </div>
-    </div>
-
-    <script>
-        document.getElementById('loginForm' ).addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData.entries());
-            
-            try {
-                const response = await fetch('/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                const messageDiv = document.getElementById('message');
-                
-                if (response.ok) {
-                    messageDiv.innerHTML = '<div class="success">Anmeldung erfolgreich! Sie werden zum Dashboard weitergeleitet...</div>';
-                    localStorage.setItem('zyrix_token', result.token);
-                    localStorage.setItem('zyrix_user', JSON.stringify(result.user));
-                    setTimeout(() => {
-                        window.location.href = result.redirect_url || 'https://www.zyrix.de/myzyrix';
-                    }, 2000 );
-                } else {
-                    messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
-                }
-            } catch (error) {
-                document.getElementById('message').innerHTML = '<div class="error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
-            }
-        });
-    </script>
-</body>
-</html>
-"""
-RESET_PASSWORD_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Passwort zurücksetzen - Zyrix</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100% ); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .container { background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); overflow: hidden; width: 100%; max-width: 400px; padding: 40px; }
-        .logo { text-align: center; margin-bottom: 30px; }
-        .logo h1 { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .description { text-align: center; color: #666; margin-bottom: 30px; line-height: 1.6; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: 500; color: #333; }
-        input[type="password"] { width: 100%; padding: 15px; border: 2px solid #e1e5e9; border-radius: 10px; font-size: 16px; transition: border-color 0.3s; }
-        input[type="password"]:focus { outline: none; border-color: #FF9900; }
-        .btn { width: 100%; padding: 15px; background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: transform 0.2s; }
-        .btn:hover { transform: translateY(-2px); }
-        .login-link { text-align: center; margin-top: 20px; }
-        .login-link a { color: #FF9900; text-decoration: none; font-weight: 500; }
-        .message { padding: 15px; margin-bottom: 20px; border-radius: 8px; text-align: center; }
-        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="logo">
-            <h1>Zyrix</h1>
-            <p>Passwort zurücksetzen</p>
-        </div>
-        
-        <div class="description">
-            Geben Sie Ihr neues Passwort ein.
-        </div>
-        
-        <div id="message"></div>
-        
-        <form id="resetForm">
-            <div class="form-group">
-                <label for="password">Neues Passwort</label>
-                <input type="password" id="password" name="password" required minlength="6">
-            </div>
-            
-            <div class="form-group">
-                <label for="confirm_password">Passwort bestätigen</label>
-                <input type="password" id="confirm_password" name="confirm_password" required minlength="6">
-            </div>
-            
-            <button type="submit" class="btn">Passwort zurücksetzen</button>
-        </form>
-        
-        <div class="login-link">
-            <a href="https://zyrix-backend-render.onrender.com/login-page">Zurück zur Anmeldung</a>
-        </div>
-    </div>
-
-    <script>
-        const urlParams = new URLSearchParams(window.location.search );
-        const token = urlParams.get('token');
-        
-        if (!token) {
-            document.getElementById('message').innerHTML = '<div class="error">Ungültiger Reset-Link</div>';
-        }
-
-        document.getElementById('resetForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirm_password').value;
-            
-            if (password !== confirmPassword) {
-                document.getElementById('message').innerHTML = '<div class="error">Passwörter stimmen nicht überein</div>';
-                return;
-            }
-            
-            try {
-                const response = await fetch('/reset-password', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: token, password: password })
-                });
-                
-                const result = await response.json();
-                const messageDiv = document.getElementById('message');
-                
-                if (response.ok) {
-                    messageDiv.innerHTML = '<div class="success">' + result.message + ' Sie werden zur Anmeldung weitergeleitet...</div>';
-                    setTimeout(() => {
-                        window.location.href = 'https://zyrix-backend-render.onrender.com/login-page';
-                    }, 3000 );
-                } else {
-                    messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
-                }
-            } catch (error) {
-                document.getElementById('message').innerHTML = '<div class="error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
-            }
-        });
-    </script>
-</body>
-</html>
-"""
