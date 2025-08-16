@@ -11,7 +11,14 @@ import jwt
 from supabase import create_client, Client
 
 app = Flask(__name__)
-CORS(app)
+
+# CORS-Konfiguration mit Dashboard-URL
+CORS(app, origins=[
+    "https://zyrix-dahboard.onrender.com",  # Dashboard URL hinzugefügt
+    "http://localhost:3000",
+    "https://www.zyrix.de",
+    "https://zyrix.de"
+])
 
 # Konfiguration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
@@ -251,7 +258,7 @@ def verify_email():
                 <div class="success">✅ E-Mail-Adresse erfolgreich bestätigt!</div>
                 <p>Ihr Konto ist jetzt aktiviert und Sie haben <strong>1200 Test-Tokens</strong> erhalten.</p>
                 <p>Sie können sich jetzt anmelden und alle Zyrix-Tools nutzen.</p>
-                <a href="https://www.zyrix.de/myzyrix" class="button">🚀 Zum Zyrix Dashboard</a>
+                <a href="https://zyrix-dahboard.onrender.com" class="button">🚀 Zum Zyrix Dashboard</a>
             </div>
         </body>
         </html>
@@ -301,7 +308,7 @@ def login():
         return jsonify({
             'message': 'Anmeldung erfolgreich',
             'token': token,
-            'redirect_url': 'https://www.zyrix.de/myzyrix',
+            'redirect_url': 'https://zyrix-dahboard.onrender.com',
             'user': {
                 'id': user_data['id'],
                 'email': user_data['email'],
@@ -430,12 +437,14 @@ def reset_password():
         
         # Passwort in Datenbank aktualisieren
         supabase.table('users').update({
-            'password_hash': password_hash
+            'password_hash': password_hash,
+            'updated_at': datetime.utcnow().isoformat()
         }).eq('id', reset_data['user_id']).execute()
         
         # Reset Token als verwendet markieren
         supabase.table('password_resets').update({
-            'used': True
+            'used': True,
+            'used_at': datetime.utcnow().isoformat()
         }).eq('id', reset_data['id']).execute()
         
         return jsonify({'message': 'Passwort erfolgreich zurückgesetzt'}), 200
@@ -453,91 +462,20 @@ REGISTER_TEMPLATE = """
     <title>Registrierung - Zyrix</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Poppins', Arial, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            min-height: 100vh; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            padding: 20px; 
-        }
-        .container { 
-            background: white; 
-            border-radius: 20px; 
-            padding: 40px; 
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
-            max-width: 500px; 
-            width: 100%; 
-        }
-        .logo { 
-            font-size: 3rem; 
-            font-weight: 800; 
-            color: #FF9900; 
-            text-align: center; 
-            margin-bottom: 30px; 
-        }
-        .form-group { 
-            margin-bottom: 20px; 
-        }
-        label { 
-            display: block; 
-            margin-bottom: 8px; 
-            font-weight: 600; 
-            color: #333; 
-        }
-        input, select { 
-            width: 100%; 
-            padding: 12px; 
-            border: 2px solid #e0e0e0; 
-            border-radius: 8px; 
-            font-size: 16px; 
-            transition: border-color 0.3s; 
-        }
-        input:focus, select:focus { 
-            outline: none; 
-            border-color: #FF9900; 
-        }
-        .btn { 
-            width: 100%; 
-            padding: 15px; 
-            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 18px; 
-            font-weight: 600; 
-            cursor: pointer; 
-            transition: transform 0.2s; 
-        }
-        .btn:hover { 
-            transform: translateY(-2px); 
-        }
-        .message { 
-            padding: 15px; 
-            border-radius: 8px; 
-            margin-bottom: 20px; 
-            text-align: center; 
-        }
-        .success { 
-            background: #d4edda; 
-            color: #155724; 
-            border: 1px solid #c3e6cb; 
-        }
-        .error { 
-            background: #f8d7da; 
-            color: #721c24; 
-            border: 1px solid #f5c6cb; 
-        }
-        .login-link { 
-            text-align: center; 
-            margin-top: 20px; 
-        }
-        .login-link a { 
-            color: #FF9900; 
-            text-decoration: none; 
-            font-weight: 600; 
-        }
+        body { font-family: 'Poppins', Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .container { background: white; border-radius: 20px; padding: 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); max-width: 500px; width: 100%; }
+        .logo { font-size: 2.5rem; font-weight: 800; color: #FF9900; text-align: center; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
+        input, select { width: 100%; padding: 12px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 16px; transition: border-color 0.3s; }
+        input:focus, select:focus { outline: none; border-color: #FF9900; }
+        .btn { background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); color: white; padding: 15px 30px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 20px; transition: transform 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .links { text-align: center; margin-top: 20px; }
+        .links a { color: #FF9900; text-decoration: none; margin: 0 10px; }
+        .message { padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     </style>
 </head>
 <body>
@@ -572,11 +510,10 @@ REGISTER_TEMPLATE = """
             <div class="form-group">
                 <label for="land">Land *</label>
                 <select id="land" name="land" required>
-                    <option value="">Land auswählen</option>
+                    <option value="">Bitte wählen</option>
                     <option value="Deutschland">Deutschland</option>
                     <option value="Österreich">Österreich</option>
                     <option value="Schweiz">Schweiz</option>
-                    <option value="Andere">Andere</option>
                 </select>
             </div>
             <div class="form-group">
@@ -587,10 +524,10 @@ REGISTER_TEMPLATE = """
                 <label for="ust_idnr">USt-IdNr. (optional)</label>
                 <input type="text" id="ust_idnr" name="ust_idnr">
             </div>
-            <button type="submit" class="btn">🚀 Jetzt registrieren</button>
+            <button type="submit" class="btn">🚀 Registrieren</button>
         </form>
-        <div class="login-link">
-            Bereits registriert? <a href="/login-page">Hier anmelden</a>
+        <div class="links">
+            <a href="/login-page">Anmelden</a> | <a href="https://www.zyrix.de">Zurück zur Hauptseite</a>
         </div>
     </div>
 
@@ -604,9 +541,7 @@ REGISTER_TEMPLATE = """
             try {
                 const response = await fetch('/register', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 
@@ -614,13 +549,13 @@ REGISTER_TEMPLATE = """
                 const messageDiv = document.getElementById('message');
                 
                 if (response.ok) {
-                    messageDiv.innerHTML = '<div class="message success">' + result.message + '</div>';
+                    messageDiv.innerHTML = '<div class="success">' + result.message + '</div>';
                     this.reset();
                 } else {
-                    messageDiv.innerHTML = '<div class="message error">' + result.error + '</div>';
+                    messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
                 }
             } catch (error) {
-                document.getElementById('message').innerHTML = '<div class="message error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
+                document.getElementById('message').innerHTML = '<div class="error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
             }
         });
     </script>
@@ -637,92 +572,20 @@ LOGIN_TEMPLATE = """
     <title>Anmeldung - Zyrix</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Poppins', Arial, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            min-height: 100vh; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            padding: 20px; 
-        }
-        .container { 
-            background: white; 
-            border-radius: 20px; 
-            padding: 40px; 
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
-            max-width: 400px; 
-            width: 100%; 
-        }
-        .logo { 
-            font-size: 3rem; 
-            font-weight: 800; 
-            color: #FF9900; 
-            text-align: center; 
-            margin-bottom: 30px; 
-        }
-        .form-group { 
-            margin-bottom: 20px; 
-        }
-        label { 
-            display: block; 
-            margin-bottom: 8px; 
-            font-weight: 600; 
-            color: #333; 
-        }
-        input { 
-            width: 100%; 
-            padding: 12px; 
-            border: 2px solid #e0e0e0; 
-            border-radius: 8px; 
-            font-size: 16px; 
-            transition: border-color 0.3s; 
-        }
-        input:focus { 
-            outline: none; 
-            border-color: #FF9900; 
-        }
-        .btn { 
-            width: 100%; 
-            padding: 15px; 
-            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 18px; 
-            font-weight: 600; 
-            cursor: pointer; 
-            transition: transform 0.2s; 
-        }
-        .btn:hover { 
-            transform: translateY(-2px); 
-        }
-        .message { 
-            padding: 15px; 
-            border-radius: 8px; 
-            margin-bottom: 20px; 
-            text-align: center; 
-        }
-        .success { 
-            background: #d4edda; 
-            color: #155724; 
-            border: 1px solid #c3e6cb; 
-        }
-        .error { 
-            background: #f8d7da; 
-            color: #721c24; 
-            border: 1px solid #f5c6cb; 
-        }
-        .links { 
-            text-align: center; 
-            margin-top: 20px; 
-        }
-        .links a { 
-            color: #FF9900; 
-            text-decoration: none; 
-            font-weight: 600; 
-            margin: 0 10px; 
-        }
+        body { font-family: 'Poppins', Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .container { background: white; border-radius: 20px; padding: 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); max-width: 400px; width: 100%; }
+        .logo { font-size: 2.5rem; font-weight: 800; color: #FF9900; text-align: center; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
+        input { width: 100%; padding: 12px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 16px; transition: border-color 0.3s; }
+        input:focus { outline: none; border-color: #FF9900; }
+        .btn { background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); color: white; padding: 15px 30px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 20px; transition: transform 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .links { text-align: center; margin-top: 20px; }
+        .links a { color: #FF9900; text-decoration: none; margin: 0 10px; }
+        .message { padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     </style>
 </head>
 <body>
@@ -741,8 +604,7 @@ LOGIN_TEMPLATE = """
             <button type="submit" class="btn">🔑 Anmelden</button>
         </form>
         <div class="links">
-            <a href="/register-page">Registrieren</a> | 
-            <a href="/forgot-password-page">Passwort vergessen?</a>
+            <a href="/register-page">Registrieren</a> | <a href="/forgot-password-page">Passwort vergessen?</a>
         </div>
     </div>
 
@@ -756,9 +618,7 @@ LOGIN_TEMPLATE = """
             try {
                 const response = await fetch('/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 
@@ -766,21 +626,17 @@ LOGIN_TEMPLATE = """
                 const messageDiv = document.getElementById('message');
                 
                 if (response.ok) {
-                    messageDiv.innerHTML = '<div class="message success">Anmeldung erfolgreich! Weiterleitung...</div>';
-                    
                     // Token speichern
                     localStorage.setItem('zyrix_token', result.token);
                     localStorage.setItem('zyrix_user', JSON.stringify(result.user));
                     
                     // Weiterleitung zum Dashboard
-                    setTimeout(() => {
-                        window.location.href = result.redirect_url;
-                    }, 1000);
+                    window.location.href = result.redirect_url;
                 } else {
-                    messageDiv.innerHTML = '<div class="message error">' + result.error + '</div>';
+                    messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
                 }
             } catch (error) {
-                document.getElementById('message').innerHTML = '<div class="message error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
+                document.getElementById('message').innerHTML = '<div class="error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
             }
         });
     </script>
@@ -797,97 +653,27 @@ FORGOT_PASSWORD_TEMPLATE = """
     <title>Passwort vergessen - Zyrix</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Poppins', Arial, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            min-height: 100vh; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            padding: 20px; 
-        }
-        .container { 
-            background: white; 
-            border-radius: 20px; 
-            padding: 40px; 
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
-            max-width: 400px; 
-            width: 100%; 
-        }
-        .logo { 
-            font-size: 3rem; 
-            font-weight: 800; 
-            color: #FF9900; 
-            text-align: center; 
-            margin-bottom: 30px; 
-        }
-        .form-group { 
-            margin-bottom: 20px; 
-        }
-        label { 
-            display: block; 
-            margin-bottom: 8px; 
-            font-weight: 600; 
-            color: #333; 
-        }
-        input { 
-            width: 100%; 
-            padding: 12px; 
-            border: 2px solid #e0e0e0; 
-            border-radius: 8px; 
-            font-size: 16px; 
-            transition: border-color 0.3s; 
-        }
-        input:focus { 
-            outline: none; 
-            border-color: #FF9900; 
-        }
-        .btn { 
-            width: 100%; 
-            padding: 15px; 
-            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 18px; 
-            font-weight: 600; 
-            cursor: pointer; 
-            transition: transform 0.2s; 
-        }
-        .btn:hover { 
-            transform: translateY(-2px); 
-        }
-        .message { 
-            padding: 15px; 
-            border-radius: 8px; 
-            margin-bottom: 20px; 
-            text-align: center; 
-        }
-        .success { 
-            background: #d4edda; 
-            color: #155724; 
-            border: 1px solid #c3e6cb; 
-        }
-        .error { 
-            background: #f8d7da; 
-            color: #721c24; 
-            border: 1px solid #f5c6cb; 
-        }
-        .back-link { 
-            text-align: center; 
-            margin-top: 20px; 
-        }
-        .back-link a { 
-            color: #FF9900; 
-            text-decoration: none; 
-            font-weight: 600; 
-        }
+        body { font-family: 'Poppins', Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .container { background: white; border-radius: 20px; padding: 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); max-width: 400px; width: 100%; }
+        .logo { font-size: 2.5rem; font-weight: 800; color: #FF9900; text-align: center; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
+        input { width: 100%; padding: 12px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 16px; transition: border-color 0.3s; }
+        input:focus { outline: none; border-color: #FF9900; }
+        .btn { background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); color: white; padding: 15px 30px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 20px; transition: transform 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .links { text-align: center; margin-top: 20px; }
+        .links a { color: #FF9900; text-decoration: none; margin: 0 10px; }
+        .message { padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="logo">Zyrix</div>
-        <h2 style="text-align: center; margin-bottom: 20px; color: #333;">Passwort zurücksetzen</h2>
+        <div class="info">Geben Sie Ihre E-Mail-Adresse ein und wir senden Ihnen einen Link zum Zurücksetzen Ihres Passworts.</div>
         <div id="message"></div>
         <form id="forgotForm">
             <div class="form-group">
@@ -896,8 +682,8 @@ FORGOT_PASSWORD_TEMPLATE = """
             </div>
             <button type="submit" class="btn">📧 Reset-Link senden</button>
         </form>
-        <div class="back-link">
-            <a href="/login-page">← Zurück zur Anmeldung</a>
+        <div class="links">
+            <a href="/login-page">Zurück zur Anmeldung</a> | <a href="/register-page">Registrieren</a>
         </div>
     </div>
 
@@ -911,9 +697,7 @@ FORGOT_PASSWORD_TEMPLATE = """
             try {
                 const response = await fetch('/request-password-reset', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 
@@ -921,13 +705,13 @@ FORGOT_PASSWORD_TEMPLATE = """
                 const messageDiv = document.getElementById('message');
                 
                 if (response.ok) {
-                    messageDiv.innerHTML = '<div class="message success">' + result.message + '</div>';
+                    messageDiv.innerHTML = '<div class="success">' + result.message + '</div>';
                     this.reset();
                 } else {
-                    messageDiv.innerHTML = '<div class="message error">' + result.error + '</div>';
+                    messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
                 }
             } catch (error) {
-                document.getElementById('message').innerHTML = '<div class="message error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
+                document.getElementById('message').innerHTML = '<div class="error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
             }
         });
     </script>
@@ -941,94 +725,30 @@ RESET_PASSWORD_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neues Passwort - Zyrix</title>
+    <title>Passwort zurücksetzen - Zyrix</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Poppins', Arial, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            min-height: 100vh; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            padding: 20px; 
-        }
-        .container { 
-            background: white; 
-            border-radius: 20px; 
-            padding: 40px; 
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1); 
-            max-width: 400px; 
-            width: 100%; 
-        }
-        .logo { 
-            font-size: 3rem; 
-            font-weight: 800; 
-            color: #FF9900; 
-            text-align: center; 
-            margin-bottom: 30px; 
-        }
-        .form-group { 
-            margin-bottom: 20px; 
-        }
-        label { 
-            display: block; 
-            margin-bottom: 8px; 
-            font-weight: 600; 
-            color: #333; 
-        }
-        input { 
-            width: 100%; 
-            padding: 12px; 
-            border: 2px solid #e0e0e0; 
-            border-radius: 8px; 
-            font-size: 16px; 
-            transition: border-color 0.3s; 
-        }
-        input:focus { 
-            outline: none; 
-            border-color: #FF9900; 
-        }
-        .btn { 
-            width: 100%; 
-            padding: 15px; 
-            background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 18px; 
-            font-weight: 600; 
-            cursor: pointer; 
-            transition: transform 0.2s; 
-        }
-        .btn:hover { 
-            transform: translateY(-2px); 
-        }
-        .message { 
-            padding: 15px; 
-            border-radius: 8px; 
-            margin-bottom: 20px; 
-            text-align: center; 
-        }
-        .success { 
-            background: #d4edda; 
-            color: #155724; 
-            border: 1px solid #c3e6cb; 
-        }
-        .error { 
-            background: #f8d7da; 
-            color: #721c24; 
-            border: 1px solid #f5c6cb; 
-        }
+        body { font-family: 'Poppins', Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .container { background: white; border-radius: 20px; padding: 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); max-width: 400px; width: 100%; }
+        .logo { font-size: 2.5rem; font-weight: 800; color: #FF9900; text-align: center; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; }
+        input { width: 100%; padding: 12px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 16px; transition: border-color 0.3s; }
+        input:focus { outline: none; border-color: #FF9900; }
+        .btn { background: linear-gradient(135deg, #FF9900 0%, #FF6600 100%); color: white; padding: 15px 30px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 20px; transition: transform 0.2s; }
+        .btn:hover { transform: translateY(-2px); }
+        .links { text-align: center; margin-top: 20px; }
+        .links a { color: #FF9900; text-decoration: none; margin: 0 10px; }
+        .message { padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="logo">Zyrix</div>
-        <h2 style="text-align: center; margin-bottom: 20px; color: #333;">Neues Passwort erstellen</h2>
         <div id="message"></div>
         <form id="resetForm">
-            <input type="hidden" id="token" name="token">
             <div class="form-group">
                 <label for="password">Neues Passwort</label>
                 <input type="password" id="password" name="password" required minlength="6">
@@ -1037,21 +757,21 @@ RESET_PASSWORD_TEMPLATE = """
                 <label for="confirm_password">Passwort bestätigen</label>
                 <input type="password" id="confirm_password" name="confirm_password" required minlength="6">
             </div>
-            <button type="submit" class="btn">🔑 Passwort speichern</button>
+            <button type="submit" class="btn">🔑 Passwort zurücksetzen</button>
         </form>
+        <div class="links">
+            <a href="/login-page">Zur Anmeldung</a>
+        </div>
     </div>
 
     <script>
-        // Token aus URL-Parameter lesen
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
         
-        if (token) {
-            document.getElementById('token').value = token;
-        } else {
-            document.getElementById('message').innerHTML = '<div class="message error">Ungültiger Reset-Link</div>';
+        if (!token) {
+            document.getElementById('message').innerHTML = '<div class="error">Ungültiger Reset-Link</div>';
         }
-
+        
         document.getElementById('resetForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -1059,35 +779,28 @@ RESET_PASSWORD_TEMPLATE = """
             const confirmPassword = document.getElementById('confirm_password').value;
             
             if (password !== confirmPassword) {
-                document.getElementById('message').innerHTML = '<div class="message error">Passwörter stimmen nicht überein</div>';
+                document.getElementById('message').innerHTML = '<div class="error">Passwörter stimmen nicht überein</div>';
                 return;
             }
-            
-            const data = {
-                token: document.getElementById('token').value,
-                password: password
-            };
             
             try {
                 const response = await fetch('/reset-password', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data)
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token, password: password })
                 });
                 
                 const result = await response.json();
                 const messageDiv = document.getElementById('message');
                 
                 if (response.ok) {
-                    messageDiv.innerHTML = '<div class="message success">' + result.message + ' <br><a href="/login-page">Jetzt anmelden</a></div>';
+                    messageDiv.innerHTML = '<div class="success">' + result.message + ' <a href="/login-page">Jetzt anmelden</a></div>';
                     this.reset();
                 } else {
-                    messageDiv.innerHTML = '<div class="message error">' + result.error + '</div>';
+                    messageDiv.innerHTML = '<div class="error">' + result.error + '</div>';
                 }
             } catch (error) {
-                document.getElementById('message').innerHTML = '<div class="message error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
+                document.getElementById('message').innerHTML = '<div class="error">Netzwerkfehler. Bitte versuchen Sie es erneut.</div>';
             }
         });
     </script>
@@ -1120,6 +833,8 @@ def home():
         'version': '3.1',
         'status': 'online',
         'platform': 'Render.com',
+        'cors_enabled': True,
+        'dashboard_url': 'https://zyrix-dahboard.onrender.com',
         'endpoints': ['/register', '/login', '/user-info', '/request-password-reset', '/reset-password']
     })
 
